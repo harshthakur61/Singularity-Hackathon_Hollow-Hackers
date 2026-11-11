@@ -2,8 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class RazorpayService {
-  static const String keyId = 'rzp_test_TCXezMGngEewk7';
-  static const String keySecret = 'qM8be9p0FHYNMQ0F3dDUcl35';
+  static const String keyId = String.fromEnvironment(
+    'RAZORPAY_KEY_ID',
+    defaultValue: 'rzp_test_TCXezMGngEewk7',
+  );
+  static const String keySecret = String.fromEnvironment(
+    'RAZORPAY_KEY_SECRET',
+    defaultValue: '',
+  );
 
   static String get _authHeader {
     final bytes = utf8.encode('$keyId:$keySecret');
@@ -16,23 +22,25 @@ class RazorpayService {
     required String receipt,
   }) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('https://api.razorpay.com/v1/orders'),
-            headers: {
-              'Authorization': _authHeader,
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'amount': amountInRupees * 100, // In paise
-              'currency': 'INR',
-              'receipt': receipt,
-            }),
-          )
-          .timeout(const Duration(seconds: 8));
+      if (keySecret.isNotEmpty) {
+        final response = await http
+            .post(
+              Uri.parse('https://api.razorpay.com/v1/orders'),
+              headers: {
+                'Authorization': _authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'amount': amountInRupees * 100, // In paise
+                'currency': 'INR',
+                'receipt': receipt,
+              }),
+            )
+            .timeout(const Duration(seconds: 8));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
       }
     } catch (_) {}
 
@@ -56,28 +64,30 @@ class RazorpayService {
     String? customerEmail,
   }) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('https://api.razorpay.com/v1/payment_links'),
-            headers: {
-              'Authorization': _authHeader,
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'amount': amountInRupees * 100,
-              'currency': 'INR',
-              'description': description,
-              'customer': {
-                'name': customerName,
-                'contact': customerPhone.replaceAll(' ', ''),
-                'email': customerEmail ?? 'patient@bedlink.org',
+      if (keySecret.isNotEmpty) {
+        final response = await http
+            .post(
+              Uri.parse('https://api.razorpay.com/v1/payment_links'),
+              headers: {
+                'Authorization': _authHeader,
+                'Content-Type': 'application/json',
               },
-            }),
-          )
-          .timeout(const Duration(seconds: 8));
+              body: jsonEncode({
+                'amount': amountInRupees * 100,
+                'currency': 'INR',
+                'description': description,
+                'customer': {
+                  'name': customerName,
+                  'contact': customerPhone.replaceAll(' ', ''),
+                  'email': customerEmail ?? 'patient@bedlink.org',
+                },
+              }),
+            )
+            .timeout(const Duration(seconds: 8));
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return jsonDecode(response.body) as Map<String, dynamic>;
+        }
       }
     } catch (_) {}
 

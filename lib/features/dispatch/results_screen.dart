@@ -576,12 +576,12 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 6, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: item.hospital.isReachable
+                                        color: item.hospital.isTerminalOnline
                                             ? AppColors.successTint
                                             : AppColors.dangerTint,
                                         borderRadius: BorderRadius.circular(8),
                                         border: Border.all(
-                                          color: item.hospital.isReachable
+                                          color: item.hospital.isTerminalOnline
                                               ? AppColors.success
                                               : AppColors.danger,
                                         ),
@@ -590,23 +590,23 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            item.hospital.isReachable
+                                            item.hospital.isTerminalOnline
                                                 ? Icons.sensors_rounded
                                                 : Icons.sensors_off_rounded,
                                             size: 11,
-                                            color: item.hospital.isReachable
+                                            color: item.hospital.isTerminalOnline
                                                 ? AppColors.success
                                                 : AppColors.danger,
                                           ),
                                           const SizedBox(width: 3),
                                           Text(
-                                            item.hospital.isReachable
-                                                ? 'Reachable'
-                                                : 'Unreachable',
+                                            item.hospital.isTerminalOnline
+                                                ? 'Terminal Online'
+                                                : 'Terminal Offline',
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
-                                              color: item.hospital.isReachable
+                                              color: item.hospital.isTerminalOnline
                                                   ? AppColors.success
                                                   : AppColors.danger,
                                             ),
@@ -682,6 +682,34 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen> {
                                     );
                                   }).toList(),
                                 ),
+
+                                if (!isPatientMode && item.hospital.isTerminalOffline) ...[
+                                  const SizedBox(height: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.dangerTint,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+                                    ),
+                                    child: Row(
+                                      children: const [
+                                        Icon(Icons.info_outline_rounded, size: 14, color: AppColors.danger),
+                                        SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            "Hospital's terminal is off · Auto-skips immediately (0s delay) if dispatched",
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.danger,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
 
                                 const SizedBox(height: 16),
 

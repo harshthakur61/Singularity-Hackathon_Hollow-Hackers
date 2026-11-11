@@ -30,13 +30,10 @@ class AppConstants {
     'General',
   ];
 
-  // AI OpenRouter API Key (Supports --dart-define=OPENROUTER_API_KEY=...)
-  static const String _keyPrefix = 'sk-or-v1-';
-  static const String _keySecret = 'b7f7d72d3fa630d8464d339f0a70d7acc40367b28c5be970c6c777a84577b404';
-
+  // AI OpenRouter API Key (Pass at build time via --dart-define=OPENROUTER_API_KEY=...)
   static const String openRouterApiKey = String.fromEnvironment(
     'OPENROUTER_API_KEY',
-    defaultValue: '$_keyPrefix$_keySecret',
+    defaultValue: '',
   );
   static const String openRouterModel = 'google/gemini-2.5-flash-lite';
 }

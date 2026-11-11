@@ -48,6 +48,16 @@ class Hospital {
     return isHeartbeatFresh || hasActiveDevices;
   }
 
+  /// Whether the hospital nurse terminal is actively online
+  bool get isTerminalOnline {
+    return isNurseOnline &&
+        (lastNurseActive == null ||
+            DateTime.now().difference(lastNurseActive!).inSeconds < 90);
+  }
+
+  /// Whether the hospital nurse terminal is offline / inactive
+  bool get isTerminalOffline => !isTerminalOnline;
+
   /// Cryptographic salted SHA-256 hash helper
   static String hashWithSalt(String pin, String salt) {
     final bytes = utf8.encode('$salt:$pin');

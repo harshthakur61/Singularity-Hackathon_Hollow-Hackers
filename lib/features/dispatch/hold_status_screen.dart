@@ -119,9 +119,21 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
     }
   }
 
-  void _showToast(String msg) {
+  void _showToast(String msg, {bool isWarning = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: isWarning ? AppColors.danger : null,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Widget _buildStepper(String status, String hospitalName, {String? reliefState}) {
@@ -422,26 +434,38 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
             );
           }
 
-          // Check if targeted hospital should be auto-skipped (Hospital Unreachable OR 0 Available Beds)
+          // Check if targeted hospital should be auto-skipped (Hospital Terminal Offline, Unreachable OR 0 Available Beds)
+          final bool isHospitalOffline = targetHospital != null && targetHospital.isTerminalOffline;
           final bool isHospitalUnreachable = targetHospital != null && !targetHospital.isReachable;
           final bool hasZeroRequestedBeds = targetHospital != null &&
               req.needs.any((need) => targetHospital!.beds.getForType(need).available <= 0);
 
           if (req.status == 'offered' &&
               targetHospital != null &&
-              (isHospitalUnreachable || hasZeroRequestedBeds) &&
+              (isHospitalOffline || isHospitalUnreachable || hasZeroRequestedBeds) &&
               !_isProcessing) {
             WidgetsBinding.instance.addPostFrameCallback((_) async {
               if (mounted && !_isProcessing) {
                 setState(() => _isProcessing = true);
-                final skipReason = isHospitalUnreachable
-                    ? 'Hospital unreachable via terminal or background push (0s auto-skip)'
-                    : '0 ${req.needs.join(", ")} beds available (0s auto-skip)';
+                final String skipReason;
+                final String resultStatus;
+
+                if (isHospitalOffline) {
+                  skipReason = "Auto skipped due to hospital's offline";
+                  resultStatus = 'offline_skip';
+                } else if (isHospitalUnreachable) {
+                  skipReason = 'Hospital unreachable via terminal or background push (0s auto-skip)';
+                  resultStatus = 'offline_skip';
+                } else {
+                  skipReason = '0 ${req.needs.join(", ")} beds available (0s auto-skip)';
+                  resultStatus = 'auto_skip';
+                }
 
                 _showToast(
-                    '⚡ $skipReason at ${targetHospital!.name}. Auto-skipping (0s delay)...');
+                    '⚡ $skipReason at ${targetHospital!.name}. Auto-skipping (0s delay)...',
+                    isWarning: true);
                 await firestoreService.handleAutoSkip(
-                    req.id, targetHospital.id, skipReason);
+                    req.id, targetHospital.id, skipReason, resultStatus);
                 if (mounted) setState(() => _isProcessing = false);
               }
             });
@@ -497,14 +521,14 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: isHospitalUnreachable
+                                color: isHospitalOffline || isHospitalUnreachable
                                     ? AppColors.dangerTint
                                     : (hasZeroRequestedBeds
                                         ? AppColors.warningTint
                                         : AppColors.successTint),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
-                                  color: isHospitalUnreachable
+                                  color: isHospitalOffline || isHospitalUnreachable
                                       ? AppColors.danger
                                       : (hasZeroRequestedBeds
                                           ? AppColors.warning
@@ -515,13 +539,13 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    isHospitalUnreachable
+                                    isHospitalOffline || isHospitalUnreachable
                                         ? Icons.sensors_off_rounded
                                         : (hasZeroRequestedBeds
                                             ? Icons.event_busy_rounded
                                             : Icons.sensors_rounded),
                                     size: 12,
-                                    color: isHospitalUnreachable
+                                    color: isHospitalOffline || isHospitalUnreachable
                                         ? AppColors.danger
                                         : (hasZeroRequestedBeds
                                             ? AppColors.warningText
@@ -529,17 +553,19 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    isHospitalUnreachable
-                                        ? 'Unreachable (Auto-Skip)'
-                                        : (hasZeroRequestedBeds
-                                            ? '0 Beds Avail (Auto-Skip)'
-                                            : (targetHospital?.isNurseOnline == true
-                                                ? 'Nurse Online'
-                                                : 'Reachable via Push')),
+                                    isHospitalOffline
+                                        ? 'Auto-skipped (Hospital Offline)'
+                                        : (isHospitalUnreachable
+                                            ? 'Unreachable (Auto-Skip)'
+                                            : (hasZeroRequestedBeds
+                                                ? '0 Beds Avail (Auto-Skip)'
+                                                : (targetHospital?.isNurseOnline == true
+                                                    ? 'Nurse Online'
+                                                    : 'Reachable via Push'))),
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
-                                      color: isHospitalUnreachable
+                                      color: isHospitalOffline || isHospitalUnreachable
                                           ? AppColors.danger
                                           : (hasZeroRequestedBeds
                                               ? AppColors.warningText
@@ -571,18 +597,83 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Center Countdown
-                Center(
-                  child: CountdownRing(
-                    offerExpiresAt: req.offerExpiresAt,
-                    onExpired: () async {
-                      await firestoreService.handleTimeoutCascade(
-                        req.id,
-                        req.currentHospitalId,
-                      );
-                    },
+                // Center Countdown or Auto-Skip Notice
+                if (isHospitalOffline || isHospitalUnreachable || hasZeroRequestedBeds) ...[
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isHospitalOffline || isHospitalUnreachable
+                          ? AppColors.dangerTint
+                          : AppColors.warningTint,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isHospitalOffline || isHospitalUnreachable
+                            ? AppColors.danger
+                            : AppColors.warning,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isHospitalOffline || isHospitalUnreachable
+                              ? Icons.sensors_off_rounded
+                              : Icons.event_busy_rounded,
+                          color: isHospitalOffline || isHospitalUnreachable
+                              ? AppColors.danger
+                              : AppColors.warningText,
+                          size: 26,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isHospitalOffline
+                                    ? 'AUTO-SKIPPED: HOSPITAL OFFLINE'
+                                    : (isHospitalUnreachable
+                                        ? 'AUTO-SKIPPED: UNREACHABLE'
+                                        : 'AUTO-SKIPPED: 0 BEDS AVAILABLE'),
+                                style: TextStyle(
+                                  color: isHospitalOffline || isHospitalUnreachable
+                                      ? AppColors.danger
+                                      : AppColors.warningText,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isHospitalOffline
+                                    ? "Auto skipped due to hospital's offline. Cascading immediately..."
+                                    : (isHospitalUnreachable
+                                        ? 'Hospital unreachable via terminal or background push. Cascading...'
+                                        : '0 requested beds available at this hospital. Cascading immediately...'),
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ] else ...[
+                  Center(
+                    child: CountdownRing(
+                      offerExpiresAt: req.offerExpiresAt,
+                      onExpired: () async {
+                        await firestoreService.handleTimeoutCascade(
+                          req.id,
+                          req.currentHospitalId,
+                        );
+                      },
+                    ),
+                  ),
+                ],
                 if (req.alertDeliveredAt != null) ...[
                   const SizedBox(height: 10),
                   Center(
@@ -632,18 +723,27 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                           ...req.attempts.map((attempt) {
                             IconData iconData;
                             Color iconColor;
+                            String statusLabel;
                             if (attempt.result == 'accepted') {
                               iconData = Icons.check_circle;
                               iconColor = AppColors.success;
+                              statusLabel = 'ACCEPTED';
                             } else if (attempt.result == 'rejected') {
                               iconData = Icons.cancel;
                               iconColor = AppColors.danger;
+                              statusLabel = 'REJECTED';
                             } else if (attempt.result == 'offline_skip') {
                               iconData = Icons.flash_off_rounded;
                               iconColor = AppColors.danger;
+                              statusLabel = 'AUTO-SKIPPED (OFFLINE)';
+                            } else if (attempt.result == 'auto_skip') {
+                              iconData = Icons.flash_off_rounded;
+                              iconColor = AppColors.warning;
+                              statusLabel = 'AUTO-SKIPPED';
                             } else {
                               iconData = Icons.timer_off;
                               iconColor = AppColors.warning;
+                              statusLabel = attempt.result.toUpperCase();
                             }
 
                             return Padding(
@@ -654,7 +754,7 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      '${attempt.hospitalName}: ${attempt.result.toUpperCase()}${attempt.reason != null ? " (${attempt.reason})" : ""}',
+                                      '${attempt.hospitalName}: $statusLabel${attempt.reason != null ? " (${attempt.reason})" : ""}',
                                       style: const TextStyle(fontSize: 13),
                                     ),
                                   ),
@@ -1477,16 +1577,27 @@ class _HoldStatusScreenState extends ConsumerState<HoldStatusScreen> {
                   ),
                   const SizedBox(height: 12),
                   ...req.attempts.map((attempt) {
+                    final bool isOffline = attempt.result == 'offline_skip';
+                    final bool isAutoSkip = attempt.result == 'auto_skip';
+                    final IconData icon = (isOffline || isAutoSkip)
+                        ? Icons.flash_off_rounded
+                        : Icons.close_rounded;
+                    final Color color = isOffline
+                        ? AppColors.danger
+                        : (isAutoSkip ? AppColors.warning : AppColors.danger);
+                    final String resultLabel = isOffline
+                        ? 'AUTO-SKIPPED (OFFLINE)'
+                        : (isAutoSkip ? 'AUTO-SKIPPED' : attempt.result.toUpperCase());
+
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4.0),
                       child: Row(
                         children: [
-                          const Icon(Icons.close_rounded,
-                              color: AppColors.danger, size: 18),
+                          Icon(icon, color: color, size: 18),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              '${attempt.hospitalName}: ${attempt.result.toUpperCase()}${attempt.reason != null ? " (${attempt.reason})" : ""}',
+                              '${attempt.hospitalName}: $resultLabel${attempt.reason != null ? " (${attempt.reason})" : ""}',
                               style: const TextStyle(fontSize: 13),
                             ),
                           ),

@@ -28,15 +28,15 @@ export class RazorpayClient {
     this.keyId =
       options?.keyId ||
       process.env.RAZORPAY_KEY_ID ||
-      'rzp_test_TCXezMGngEewk7';
+      'rzp_test_placeholder';
     this.keySecret =
       options?.keySecret ||
       process.env.RAZORPAY_KEY_SECRET ||
-      'qM8be9p0FHYNMQ0F3dDUcl35';
+      '';
     this.webhookSecret =
       options?.webhookSecret ||
       process.env.RAZORPAY_WEBHOOK_SECRET ||
-      'test_webhook_secret_key_12345';
+      '';
   }
 
   public getKeyId(): string {

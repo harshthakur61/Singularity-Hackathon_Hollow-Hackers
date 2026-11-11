@@ -674,7 +674,7 @@ class FirestoreService {
   }
 
   // Handle instant auto-skip (0s delay auto-cascade for offline nurse or 0 available beds)
-  Future<void> handleAutoSkip(String requestId, String hospitalId, [String? reason]) async {
+  Future<void> handleAutoSkip(String requestId, String hospitalId, [String? reason, String result = 'auto_skip']) async {
     final reqRef = _requestsRef.doc(requestId);
     final reqSnapshot = await reqRef.get();
     if (!reqSnapshot.exists) return;
@@ -686,13 +686,13 @@ class FirestoreService {
     final hospDoc = await hospRef.get();
     final hospName = hospDoc.exists ? (hospDoc.data()?['name'] ?? 'Hospital') : 'Hospital';
 
-    final skipReason = reason ?? 'Auto-skipped (0s delay)';
+    final skipReason = reason ?? "Auto skipped due to hospital's offline";
 
     final updatedAttempts = List<Attempt>.from(req.attempts)
       ..add(Attempt(
         hospitalId: hospitalId,
         hospitalName: hospName,
-        result: 'auto_skip',
+        result: result,
         reason: skipReason,
         at: DateTime.now(),
       ));
@@ -719,7 +719,7 @@ class FirestoreService {
   }
 
   Future<void> handleOfflineSkip(String requestId, String hospitalId) async {
-    await handleAutoSkip(requestId, hospitalId, 'Nurse terminal offline (0s auto-skip)');
+    await handleAutoSkip(requestId, hospitalId, "Auto skipped due to hospital's offline", 'offline_skip');
   }
 
   // Nurse: Update presence (online / offline)
