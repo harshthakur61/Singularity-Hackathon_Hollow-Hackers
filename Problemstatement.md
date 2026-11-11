@@ -6,4 +6,4 @@ cheap phone); a dispatch screen that takes the patient’s needs and location an
 by bed match, estimated travel time, data freshness and current load; and a confirm-and-hold
 step where the chosen hospital accepts or rejects within 2 minutes, the bed is held for the
 ambulance, and the next-best hospital is offered automatically on rejection or timeout. Every
-listing shows how many minutes old its data is.
+listing shows how many minutes old its data is...  
